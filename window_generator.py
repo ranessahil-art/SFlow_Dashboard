@@ -5,7 +5,7 @@ import joblib
 # LOAD DATA
 # -------------------------------
 
-df = pd.read_csv("aligned_training_dataset.csv")
+df = pd.read_csv("final_training_dataset.csv")
 
 print("Dataset Loaded:", df.shape)
 
@@ -23,16 +23,19 @@ print("Model Loaded Successfully")
 
 feature_cols = [
 
-    "Total_Bytes_per_sec",
-    "Total_Pkts_per_sec",
-    "Total_Packets",
-    "Total_Bytes",
-    "Avg_Packet_Size",
-    "Flow_Duration",
-    "Pkt_Size_Mean",
-    "Pkt_Size_Std",
-    "Pkt_Size_Max",
-    "Pkt_Size_Min"
+    "Flow Duration",
+
+    "Tot Fwd Pkts",
+    "Tot Bwd Pkts",
+
+    "TotLen Fwd Pkts",
+    "TotLen Bwd Pkts",
+
+    "Flow Byts/s",
+    "Flow Pkts/s",
+
+    "Fwd Pkts/s",
+    "Bwd Pkts/s"
 
 ]
 
