@@ -1,13 +1,13 @@
 import pandas as pd
 
-# Load CIC dataset
+# Load CIC Dataset
 df = pd.read_csv("Dataset/DDOS attack-HOIC.csv")
 
 print("Original Shape:", df.shape)
 
-# -----------------------------
-# FINAL FEATURES (sFlow-compatible)
-# -----------------------------
+# -----------------------------------
+# Final Reliable Features
+# -----------------------------------
 
 features = [
 
@@ -22,43 +22,36 @@ features = [
     "Flow Byts/s",
     "Flow Pkts/s",
 
+    "Fwd Pkts/s",
+    "Bwd Pkts/s",
+
     "Label"
+
 ]
 
-df = df[features]
+# Select only required columns
+df_final = df[features].copy()
 
-# -----------------------------
-# Create sFlow-style mapping
-# -----------------------------
+# -----------------------------------
+# Convert Label
+# -----------------------------------
 
-df_final = pd.DataFrame()
-
-df_final["Total_Bytes_per_sec"] = df["Flow Byts/s"]
-df_final["Total_Pkts_per_sec"] = df["Flow Pkts/s"]
-
-df_final["Total_Packets"] = df["Tot Fwd Pkts"] + df["Tot Bwd Pkts"]
-df_final["Total_Bytes"] = df["TotLen Fwd Pkts"] + df["TotLen Bwd Pkts"]
-
-df_final["Avg_Packet_Size"] = df_final["Total_Bytes"] / (df_final["Total_Packets"] + 1)
-
-# Flow duration (safe)
-df_final["Flow_Duration"] = df["Flow Duration"]
-
-# -----------------------------
-# Label
-# -----------------------------
-
-df_final["Label"] = df["Label"].apply(lambda x: 0 if x == "Benign" else 1)
+df_final["Label"] = df_final["Label"].apply(
+    lambda x: 0 if x == "Benign" else 1
+)
 
 print("\nFinal Dataset Shape:", df_final.shape)
 
 print("\nLabel Distribution:")
 print(df_final["Label"].value_counts())
 
-# -----------------------------
-# Save final dataset
-# -----------------------------
+# -----------------------------------
+# Save Final Dataset
+# -----------------------------------
 
-df_final.to_csv("final_training_dataset.csv", index=False)
+df_final.to_csv(
+    "final_training_dataset.csv",
+    index=False
+)
 
-print("\nFINAL dataset saved successfully!")
+print("\nFinal Training Dataset Saved Successfully!")

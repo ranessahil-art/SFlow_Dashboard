@@ -20,12 +20,23 @@ def get_live_sample():
     """
 
     return {
-        "Total_Bytes_per_sec": 500000,
-        "Total_Pkts_per_sec": 1200,
-        "Total_Packets": 800,
-        "Total_Bytes": 600000,
-        "Avg_Packet_Size": 500,
-        "Flow_Duration": 5
+
+        "Flow Duration": 5,
+
+        "Tot Fwd Pkts": 400,
+        "Tot Bwd Pkts": 380,
+
+        "TotLen Fwd Pkts": 320000,
+        "TotLen Bwd Pkts": 280000,
+
+        "Flow Byts/s": 500000,
+
+        "Flow Pkts/s": 1200,
+
+        "Fwd Pkts/s": 620,
+
+        "Bwd Pkts/s": 580
+
     }
 
 # -----------------------------
