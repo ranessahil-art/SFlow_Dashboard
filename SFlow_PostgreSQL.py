@@ -5,8 +5,12 @@ asyncio.set_event_loop(asyncio.new_event_loop())
 import pyshark
 import psycopg2
 import requests
+import joblib
+import pandas as pd
+import os
 
 from datetime import datetime
+from collections import deque
 
 from Sflow_Device_SQL import insert_device
 from EventLogger import add_event
@@ -24,6 +28,32 @@ conn = psycopg2.connect(
 )
 
 cur = conn.cursor()
+
+# --------------------------------------------------
+# Machine Learning
+# --------------------------------------------------
+
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+MODEL_PATH = os.path.join(
+    BASE_DIR,
+    "ML_DDOS_Project",
+    "Models",
+    "ddos_final_model.pkl"
+)
+
+model = joblib.load(MODEL_PATH)
+
+model = joblib.load(MODEL_PATH)
+
+print("Random Forest Model Loaded Successfully")
+
+WINDOW_SIZE = 5
+
+ml_buffer = deque(maxlen=WINDOW_SIZE)
+
+last_prediction = 0
 
 
 # --------------------------------------------------
@@ -253,6 +283,153 @@ for pkt in capture.sniff_continuously():
 
                 except:
                     pass
+
+            # --------------------------------------------------
+            # Build ML Feature Vector
+            # --------------------------------------------------
+
+            ml_sample = None
+
+            if (
+
+                    delta_sysuptime is not None and
+                    delta_sysuptime > 0 and
+
+                    delta_ifinoct is not None and
+                    delta_ifinpkt is not None and
+
+                    delta_ifoutoct is not None and
+                    delta_ifoutpkt is not None
+
+            ):
+
+                # Convert milliseconds to seconds
+                duration_seconds = delta_sysuptime / 1000.0
+
+                ml_sample = {
+
+                    "Flow Duration": duration_seconds,
+
+                    "Tot Fwd Pkts": delta_ifinpkt,
+                    "Tot Bwd Pkts": delta_ifoutpkt,
+
+                    "TotLen Fwd Pkts": delta_ifinoct,
+                    "TotLen Bwd Pkts": delta_ifoutoct,
+
+                    "Flow Byts/s":
+                        (delta_ifinoct + delta_ifoutoct) / duration_seconds,
+
+                    "Flow Pkts/s":
+                        (delta_ifinpkt + delta_ifoutpkt) / duration_seconds,
+
+                    "Fwd Pkts/s":
+                        delta_ifinpkt / duration_seconds,
+
+                    "Bwd Pkts/s":
+                        delta_ifoutpkt / duration_seconds
+
+                }
+
+                print("\nML FEATURES")
+
+                for key, value in ml_sample.items():
+                    print(f"{key:20} : {value}")
+
+                # ------------------------------------
+                # Store sample in rolling buffer
+                # ------------------------------------
+
+                ml_buffer.append(ml_sample)
+
+                print(f"\nWindow Buffer : {len(ml_buffer)}/{WINDOW_SIZE}")
+
+                if len(ml_buffer) < WINDOW_SIZE:
+
+                    print("Waiting for enough samples...\n")
+
+                else:
+
+                    print("Window Ready!")
+
+                    # ----------------------------------
+                    # Convert window to DataFrame
+                    # ----------------------------------
+
+                    window_df = pd.DataFrame(ml_buffer)
+
+                    print("\n========== WINDOW CONTENT ==========")
+                    print(window_df)
+                    print("====================================")
+
+                    # ----------------------------------
+                    # Compute average feature values
+                    # ----------------------------------
+
+                    final_features = pd.DataFrame([
+
+                        window_df.mean()
+
+                    ])
+
+                    print("\n========== WINDOW MEAN ==========")
+                    print(final_features)
+                    print("=================================")
+
+                    # ----------------------------------
+                    # Prediction
+                    # ----------------------------------
+
+                    prediction = model.predict(final_features)[0]
+
+                    probability = model.predict_proba(final_features)[0]
+
+                    confidence = max(probability) * 100
+
+                    # ----------------------------------
+                    # Display Result
+                    # ----------------------------------
+
+                    print("\n========== ML RESULT ==========")
+
+
+
+                    if prediction == 0:
+
+                        print(f"Prediction : BENIGN")
+                        print(f"Confidence : {confidence:.2f}%")
+
+                        last_prediction = 0
+
+
+                    else:
+
+                        print(f"Prediction : DDOS")
+                        print(f"Confidence : {confidence:.2f}%")
+
+                        # Generate alert only once
+                        if last_prediction == 0 and confidence >= 90:
+
+                            try:
+
+                                requests.post(
+                                    "http://10.21.1.38:8000/log_event",
+                                    json={
+                                        "severity": "Critical",
+                                        "event_type": "ML DDoS Detection",
+                                        "message":
+                                            f"Random Forest detected DDoS ({confidence:.2f}% confidence)"
+                                    }
+                                )
+
+                                print("ML DDoS Event Sent To Dashboard")
+
+                            except Exception as e:
+
+                                print("Event Logging Failed:", e)
+
+                        last_prediction = 1
+
+                    print("===============================\n")
 
             print("NEW INSERT BLOCK RUNNING")
             cur.execute(
